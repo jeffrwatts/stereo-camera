@@ -96,12 +96,15 @@ for frame in camera.capture_continuous(capture, format="bgra", use_video_port=Tr
     image_left = cv2.rectangle(image_left, (155,115), (165,125), (0, 255, 0), thickness=2)
     
     #distance = _3dImage[120,160,2]
-    distance = 0
     distance_map = _3dImage[115:125, 155:165, 2]
     distance_map[distance_map < 0] = 0.0
+    distance_map[distance_map == np.inf] = 0.0
+    
     n_valid_distance = np.count_nonzero(distance_map)
     if (n_valid_distance != 0):
-        distance = np.sum(distance_map)/n_valid_distance
+        distance = str(int(np.sum(distance_map)/n_valid_distance))
+    else:
+        distance = "invalid"
 
     cv2.putText(image_left,
                 str(distance),
