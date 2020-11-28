@@ -177,6 +177,6 @@ def compute_3dImage(sbm, image_pair, left_map_1, left_map_2, right_map_1, right_
     disparity = sbm.compute(rectified_image_left, rectified_image_right).astype(np.float32) / 16.0
     _3dImage = cv2.reprojectImageTo3D(disparity, Q)
 
-    return _3dImage, disparity
+    return _3dImage, disparity, image_left, image_right
 
 

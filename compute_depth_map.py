@@ -19,7 +19,7 @@ sbm = create_SBM(sbm_config)
 image_filename = 'test.jpg'
 image_pair = cv2.imread(image_filename, cv2.IMREAD_COLOR)
 
-_3dImage, disparity = compute_3dImage(sbm, image_pair, left_map_1, left_map_2, right_map_1, right_map_2, Q)
+_3dImage, disparity, _, _ = compute_3dImage(sbm, image_pair, left_map_1, left_map_2, right_map_1, right_map_2, Q)
 
 local_max = disparity.max()
 local_min = disparity.min()
