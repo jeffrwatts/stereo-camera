@@ -57,48 +57,34 @@ def get_corners (image_search, checker_def, scale_ratio = 1):
             cornersR = cv2.cornerSubPix(resized_image_right, cornersR, (3,3), (-1,-1), subpix_criteria)
             right_image_points.append(cornersR)
             
-    return object_points, left_image_points, right_image_points, (width, height)
+    return object_points, left_image_points, right_image_points, (scaled_width,scaled_height)
 
 def calibrate_cameras(object_points, left_image_points, right_image_points, image_dims):
-        
-    if (os.path.isdir('./calibration_data')==False):
-        print("Creating calibration results directory")
-        os.makedirs('./calibration_data')
-            
-    print(image_dims)
-    
-    # Calibrate Left Camera
-    print("Calibrating Left Camera...")
+    calibration_data = {}
+
+     # Calibrate Left Camera
     (rms_left, left_camera_matrix, 
      left_dist_coeffs, _, _) = cv2.calibrateCamera(objectPoints=object_points,
                                                    imagePoints=left_image_points,
                                                    imageSize=image_dims,
                                                    cameraMatrix=None,
                                                    distCoeffs=None)
-    print(rms_left)
-    print(left_camera_matrix)
-    print(left_dist_coeffs)
-                    
-    np.savez('./calibration_data/camera_calibration_left.npz', object_points=object_points, image_points=left_image_points,
-        camera_matrix=left_camera_matrix, distortion_coeff=left_dist_coeffs)
-
+    calibration_data['rms_left'] = rms_left
+    calibration_data['left_camera_matrix']  = left_camera_matrix
+    calibration_data['left_dist_coeffs']  = left_dist_coeffs
+                
     # Calibrate Right Camera
-    print("Calibrating Right Camera...")
     (rms_right, right_camera_matrix, 
      right_dist_coeffs, _, _) = cv2.calibrateCamera(objectPoints=object_points,
                                                    imagePoints=right_image_points,
                                                    imageSize=image_dims,
                                                    cameraMatrix=None,
-                                                   distCoeffs=None) 
-    print(rms_right)
-    print(right_camera_matrix)
-    print(right_dist_coeffs)
-     
-    np.savez('./calibration_data/camera_calibration_right.npz', object_points=object_points, image_points=right_image_points,
-        camera_matrix=right_camera_matrix, distortion_coeff=right_dist_coeffs)
+                                                   distCoeffs=None)
+    calibration_data['rms_right'] = rms_right
+    calibration_data['right_camera_matrix']  = right_camera_matrix
+    calibration_data['right_dist_coeffs']  = right_dist_coeffs 
 
     # Stereo Calibrate
-    print ("Stereo Calibrate....")
     (rms_stereo, _, _, _, _,
      R, T, E, F) = cv2.stereoCalibrate(objectPoints=object_points,
                                        imagePoints1=left_image_points,
@@ -108,8 +94,11 @@ def calibrate_cameras(object_points, left_image_points, right_image_points, imag
                                        cameraMatrix2=right_camera_matrix,
                                        distCoeffs2=right_dist_coeffs,
                                        imageSize=image_dims)
-     
-    print(rms_stereo)
+    calibration_data['rms_stereo'] = rms_stereo
+    calibration_data['R']  = R
+    calibration_data['T']  = T 
+    calibration_data['E']  = E 
+    calibration_data['F']  = F 
 
      # Compute parameters to rectify each camera.
     (rect_trans_left, rect_trans_right, 
@@ -121,8 +110,6 @@ def calibrate_cameras(object_points, left_image_points, right_image_points, imag
                                                      imageSize=image_dims,
                                                      R=R,
                                                      T=T)
-    
-    print(Q)
      
     # Compute the undistort maps
     left_map_1, left_map_2 = cv2.initUndistortRectifyMap(cameraMatrix=left_camera_matrix,
@@ -138,37 +125,58 @@ def calibrate_cameras(object_points, left_image_points, right_image_points, imag
                                                     newCameraMatrix=proj_matrix_right,
                                                     size=image_dims,
                                                     m1type=cv2.CV_32FC1)
-    np.savez_compressed('./calibration_data/stereo_camera_calibration.npz', imageSize=image_dims,
-            R=R, T=T, E=E, F=F, Q=Q, left_map_1=left_map_1, left_map_2=left_map_2,
-            right_map_1=right_map_1, right_map_2=right_map_2,
-                        leftMapX=left_map_1, leftMapY=left_map_2, rightMapX=right_map_1, rightMapY=right_map_2)
-    
-    return left_map_1, left_map_2, right_map_1, right_map_2, Q
+
+    calibration_data['left_map_1']  = left_map_1
+    calibration_data['left_map_2']  = left_map_2 
+    calibration_data['right_map_1']  = right_map_1 
+    calibration_data['right_map_2']  = right_map_2     
+    calibration_data['Q']  = Q 
+    return calibration_data
+
+def save_calibration_data (calibration_data, calibration_file):
+    np.savez(calibration_file, 
+    rms_left = calibration_data['rms_left'], 
+    left_camera_matrix = calibration_data['left_camera_matrix'],
+    left_dist_coeffs = calibration_data['left_dist_coeffs'],
+    rms_right = calibration_data['rms_right'],
+    right_camera_matrix = calibration_data['right_camera_matrix'],
+    right_dist_coeffs = calibration_data['right_dist_coeffs'],
+    rms_stereo = calibration_data['rms_stereo'],
+    R = calibration_data['R'],
+    T = calibration_data['T'],
+    E = calibration_data['E'],
+    F = calibration_data['F'],
+    Q = calibration_data['Q'],
+    left_map_1 = calibration_data['left_map_1'],
+    left_map_2 = calibration_data['left_map_2'],
+    right_map_1 = calibration_data['right_map_1'],
+    right_map_2 = calibration_data['right_map_2'])
+
+def create_SBM (sbm_config):
+    block_size = 15
+
+    sbm = cv2.StereoBM_create(numDisparities=sbm_config['numberOfDisparities'], blockSize=block_size)
+    sbm.setPreFilterType(1)
+    sbm.setPreFilterSize(sbm_config['preFilterSize'])
+    sbm.setPreFilterCap(sbm_config['preFilterCap'])
+    sbm.setMinDisparity(sbm_config['minDisparity'])
+    sbm.setTextureThreshold(sbm_config['textureThreshold'])
+    sbm.setUniquenessRatio(sbm_config['uniquenessRatio'])
+    sbm.setSpeckleRange(sbm_config['speckleRange'])
+    sbm.setSpeckleWindowSize(sbm_config['speckleWindowSize'])
+
+    return sbm
+
+def compute_3dImage(sbm, image_pair, left_map_1, left_map_2, right_map_1, right_map_2, Q): 
+    image_pair = cv2.cvtColor(image_pair,cv2.COLOR_BGR2GRAY)
+    image_left, image_right, _ = split_image(image_pair)
+
+    rectified_image_left = cv2.remap(image_left, left_map_1, left_map_2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+    rectified_image_right = cv2.remap(image_right, right_map_1, right_map_2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+
+    disparity = sbm.compute(rectified_image_left, rectified_image_right).astype(np.float32) / 16.0
+    _3dImage = cv2.reprojectImageTo3D(disparity, Q)
+
+    return _3dImage, disparity
 
 
-image_search = './scenes/*.png'
-checker_def = (9,6,4)
-scale_ratio = 0.5
-
-object_points, left_image_points, right_image_points, image_dims = get_corners (image_search, checker_def, scale_ratio)
-
-scaled_image_dims = (int(image_dims[0]*scale_ratio), int(image_dims[1]*scale_ratio))
-
-left_map_1, left_map_2, right_map_1, right_map_2, Q = calibrate_cameras(object_points, left_image_points, right_image_points, scaled_image_dims)
-
-image_filename = './scenes/scene_1280x480_1.png'
-
-image_pair = cv2.imread(image_filename, cv2.IMREAD_COLOR)
-image_pair = cv2.cvtColor(image_pair,cv2.COLOR_RGB2GRAY)
-image_left, image_right, _ = split_image(image_pair)
-print(image_left.shape)
-
-rectified_image_left = cv2.remap(image_left, left_map_1, left_map_2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
-rectified_image_right = cv2.remap(image_right, right_map_1, right_map_2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
-
-_, image_cells = plt.subplots(1, 2, figsize=(10, 10))
-image_cells[0].imshow(rectified_image_left)
-image_cells[0].set_title('left image')
-image_cells[1].imshow(rectified_image_right)
-image_cells[1].set_title('right image')
-plt.show()
