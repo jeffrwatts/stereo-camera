@@ -82,6 +82,7 @@ for frame in camera.capture_continuous(frame_buffer, format="bgra", use_video_po
     
     key = cv2.waitKey(1) & 0xFF   
     if key == ord("q"):
+        cv2.imwrite("object.jpg", frame)
         quit();
 
 
